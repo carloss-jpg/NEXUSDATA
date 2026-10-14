@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NEXUS DATA: herramienta educativa para multiplicar matrices y comprender el procedimiento paso a paso.">
+    <title>NEXUS DATA | Multiplicación de matrices</title>
+    <link rel="icon" href="assets\images\logo-nexus-icono.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="splash-active">
+
+<!-- ====================== PANTALLA DE BIENVENIDA ====================== -->
+<div class="splash" id="splash">
+    <button type="button" class="splash-btn" id="splashBtn" aria-label="Entrar a NEXUS DATA">
+        <img class="splash-logo" src="assets/images/logo-nexus-completo.png" alt="NEXUS DATA: conectamos datos, impulsamos la precisión">
+        <span class="splash-fallback" aria-hidden="true">NEXUS <span class="brand-accent">DATA</span></span>
+
+    </button>
+</div>
+
+<a class="skip-link" href="#contenido-principal">Saltar al contenido</a>
+
+<!-- ====================== ENCABEZADO ====================== -->
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="#multiplicacion" data-nav="multiplicacion" aria-label="NEXUS DATA, ir a Multiplicación de matrices">
+            <span class="brand-mark" aria-hidden="true">
+                <img class="brand-img" src="assets/images/logo-nexus-icono.png" alt="" width="40" height="40">
+                <span class="brand-fallback">N</span>
+            </span>
+            <span class="brand-text">NEXUS <span class="brand-accent">DATA</span></span>
+        </a>
+
+        <button class="menu-toggle" id="menuToggle" type="button"
+                aria-expanded="false" aria-controls="mainNav" aria-label="Abrir menú">
+            <span class="menu-toggle-bar"></span>
+            <span class="menu-toggle-bar"></span>
+            <span class="menu-toggle-bar"></span>
+        </button>
+
+        <nav class="main-nav" id="mainNav" aria-label="Menú principal">
+            <ul class="nav-list">
+                <li><a class="nav-link is-active" href="#multiplicacion" data-nav="multiplicacion" aria-current="page">Multiplicación de matrices</a></li>
+                <li><a class="nav-link" href="#concepto" data-nav="concepto">Concepto</a></li>
+                <li><a class="nav-link" href="#acerca" data-nav="acerca">Acerca de</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<!-- ====================== CONTENIDO ====================== -->
+<main id="contenido-principal" class="site-main" tabindex="-1">
+
+    <!-- ========== SECCIÓN 1: MULTIPLICACIÓN ========== -->
+    <section id="multiplicacion" class="view is-visible" aria-labelledby="titulo-multiplicacion">
+        <div class="view-head">
+            <p class="eyebrow"></p>
+            <h1 id="titulo-multiplicacion">Multiplicación de Matrices</h1>
+            <p class="lead">Configura las dimensiones, ingresa los valores y obtén el resultado junto con el procedimiento paso a paso.</p>
+        </div>
+
+        <!-- Área 1: Configuración -->
+        <div class="card" aria-labelledby="titulo-config">
+            <div class="card-head">
+                <span class="step-badge" aria-hidden="true">1</span>
+                <h2 id="titulo-config">Configuración de las matrices</h2>
+            </div>
+
+            <div class="config-grid">
+                <fieldset class="config-box">
+                    <legend>Matriz A</legend>
+                    <div class="select-row">
+                        <div class="field">
+                            <label for="filasA">Filas</label>
+                            <select id="filasA" data-matriz="A" data-dim="filas"></select>
+                        </div>
+                        <span class="times" aria-hidden="true">×</span>
+                        <div class="field">
+                            <label for="columnasA">Columnas</label>
+                            <select id="columnasA" data-matriz="A" data-dim="columnas"></select>
+                        </div>
+                    </div>
+                    <p class="dim-label">Matriz A: <strong id="dimA">2 × 3</strong></p>
+                </fieldset>
+
+                <fieldset class="config-box">
+                    <legend>Matriz B</legend>
+                    <div class="select-row">
+                        <div class="field">
+                            <label for="filasB">Filas</label>
+                            <select id="filasB" data-matriz="B" data-dim="filas"></select>
+                        </div>
+                        <span class="times" aria-hidden="true">×</span>
+                        <div class="field">
+                            <label for="columnasB">Columnas</label>
+                            <select id="columnasB" data-matriz="B" data-dim="columnas"></select>
+                        </div>
+                    </div>
+                    <p class="dim-label">Matriz B: <strong id="dimB">3 × 2</strong></p>
+                </fieldset>
+            </div>
+
+            <div id="compatibilidad" class="status status-ok" role="status" aria-live="polite"></div>
+        </div>
+
+        <!-- Área 2: Ingreso de valores -->
+        <div class="card" aria-labelledby="titulo-valores">
+            <div class="card-head">
+                <span class="step-badge" aria-hidden="true">2</span>
+                <h2 id="titulo-valores">Ingreso de los valores</h2>
+            </div>
+
+            <div class="matrices-wrap">
+                <div class="matrix-panel">
+                    <h3>Matriz A</h3>
+                    <div class="matrix-scroll">
+                        <div class="matrix-bracket">
+                            <div id="gridA" class="matrix-grid" role="group" aria-label="Valores de la matriz A"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="operator" aria-hidden="true">×</div>
+
+                <div class="matrix-panel">
+                    <h3>Matriz B</h3>
+                    <div class="matrix-scroll">
+                        <div class="matrix-bracket">
+                            <div id="gridB" class="matrix-grid" role="group" aria-label="Valores de la matriz B"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="mensajeError" class="status status-error" role="alert" hidden></div>
+
+            <div class="actions">
+                <button type="button" id="btnCalcular" class="btn btn-primary">Calcular multiplicación</button>
+                <button type="button" id="btnEjemplo" class="btn btn-secondary">Cargar ejemplo</button>
+                <button type="button" id="btnLimpiar" class="btn btn-ghost">Limpiar</button>
+            </div>
+        </div>
+
+        <!-- Área 3: Resultado -->
+        <div class="card card-result" id="areaResultado" aria-labelledby="titulo-resultado" hidden>
+            <div class="card-head">
+                <span class="step-badge" aria-hidden="true">3</span>
+                <h2 id="titulo-resultado">Resultado de la multiplicación</h2>
+            </div>
+            <div class="result-meta">
+                <p class="operation" id="operacionTexto"></p>
+                <p class="dim-chip">Dimensiones de C: <strong id="dimC"></strong></p>
+            </div>
+            <div class="matrix-scroll">
+                <div class="matrix-bracket matrix-bracket-result">
+                    <div id="gridResultado" class="matrix-grid" role="table" aria-label="Matriz resultado C"></div>
+                </div>
+            </div>
+            <div class="status status-ok" role="status">El cálculo finalizó correctamente.</div>
+        </div>
+
+        <!-- Área 4: Procedimiento -->
+        <div class="card" id="areaProcedimiento" aria-labelledby="titulo-procedimiento" hidden>
+            <div class="card-head">
+                <span class="step-badge" aria-hidden="true">4</span>
+                <h2 id="titulo-procedimiento">Procedimiento matemático paso a paso</h2>
+            </div>
+            <p class="muted">Cada elemento <em>c<sub>ij</sub></em> se obtiene multiplicando la fila <em>i</em> de A por la columna <em>j</em> de B y sumando los productos.</p>
+            <div class="proc-tools">
+                <button type="button" id="btnExpandir" class="btn btn-small btn-secondary">Expandir todo</button>
+                <button type="button" id="btnContraer" class="btn btn-small btn-ghost">Contraer todo</button>
+            </div>
+            <div id="procedimiento" class="procedure"></div>
+        </div>
+    </section>
+
+    <!-- ========== SECCIÓN 2: CONCEPTO ========== -->
+    <section id="concepto" class="view" aria-labelledby="titulo-concepto" hidden>
+        <div class="view-head">
+            <p class="eyebrow">Fundamentos</p>
+            <h1 id="titulo-concepto">Concepto</h1>
+            <p class="lead">Los conocimientos básicos para entender cómo se multiplican dos matrices.</p>
+        </div>
+
+        <article class="card">
+            <h2><span class="num">6.1</span> ¿Qué es una matriz?</h2>
+            <p>Una <strong>matriz</strong> es un arreglo rectangular de números organizado en <strong>filas</strong> (horizontales) y <strong>columnas</strong> (verticales). Cada número se llama elemento y se identifica con su posición.</p>
+            <div class="example-row">
+                <div class="math-matrix" aria-label="Matriz de ejemplo de 2 filas y 3 columnas">
+                    <table>
+                        <tr><td>1</td><td>4</td><td>7</td></tr>
+                        <tr><td>2</td><td>5</td><td>8</td></tr>
+                    </table>
+                </div>
+                <ul class="plain-list">
+                    <li><strong>Filas:</strong> 2 (la primera es 1, 4, 7).</li>
+                    <li><strong>Columnas:</strong> 3 (la primera es 1, 2).</li>
+                    <li><strong>Dimensiones:</strong> 2 × 3 (filas × columnas).</li>
+                    <li>El elemento <em>a</em><sub>23</sub> está en la fila 2, columna 3 y vale 8.</li>
+                </ul>
+            </div>
+        </article>
+
+        <article class="card">
+            <h2><span class="num">6.2</span> ¿Qué es la multiplicación de matrices?</h2>
+            <p>Es una operación que permite obtener una <strong>nueva matriz</strong> a partir de dos matrices compatibles. Cada elemento del resultado se forma combinando una <strong>fila de la primera matriz</strong> con una <strong>columna de la segunda</strong>: se multiplican los elementos que ocupan la misma posición y se suman los productos.</p>
+            <p class="note">Importante: no se multiplica «elemento con elemento» como en la suma. El orden también importa; en general, A × B no es igual a B × A.</p>
+        </article>
+
+        <article class="card">
+            <h2><span class="num">6.3</span> Condición para multiplicar matrices</h2>
+            <p>El número de <strong>columnas de la primera matriz</strong> debe ser igual al número de <strong>filas de la segunda</strong>. Si A es de dimensión <em>m × n</em> y B es de dimensión <em>n × p</em>, entonces C = A × B es de dimensión <em>m × p</em>.</p>
+            <div class="compare-grid">
+                <div class="compare compare-ok">
+                    <h3>Multiplicación válida</h3>
+                    <p>A: 2 × <strong>3</strong></p>
+                    <p>B: <strong>3</strong> × 2</p>
+                    <p>Columnas de A = filas de B (3 = 3).</p>
+                    <p class="result-line">Resultado C: 2 × 2</p>
+                </div>
+                <div class="compare compare-bad">
+                    <h3>Multiplicación no válida</h3>
+                    <p>A: 2 × <strong>3</strong></p>
+                    <p>B: <strong>2</strong> × 2</p>
+                    <p>Columnas de A ≠ filas de B (3 ≠ 2).</p>
+                    <p class="result-line">No se puede calcular</p>
+                </div>
+            </div>
+        </article>
+
+        <article class="card">
+            <h2><span class="num">6.4</span> Fórmula matemática</h2>
+            <div class="formula" aria-label="c sub i j igual a la suma desde k igual a 1 hasta n de a sub i k por b sub k j">
+                <span class="f-var">c<sub>ij</sub></span>
+                <span class="f-eq">=</span>
+                <span class="f-sum"><span class="f-top">n</span><span class="f-sigma">Σ</span><span class="f-bottom">k=1</span></span>
+                <span class="f-var">a<sub>ik</sub> · b<sub>kj</sub></span>
+            </div>
+            <ul class="plain-list">
+                <li><strong>c<sub>ij</sub></strong>: elemento de la matriz resultado, en la fila <em>i</em> y columna <em>j</em>.</li>
+                <li><strong>a<sub>ik</sub></strong>: elemento de la fila correspondiente de A.</li>
+                <li><strong>b<sub>kj</sub></strong>: elemento de la columna correspondiente de B.</li>
+                <li><strong>k</strong>: índice que recorre los elementos que se multiplican.</li>
+                <li><strong>n</strong>: número de columnas de A, que coincide con el número de filas de B.</li>
+            </ul>
+            <p>En otras palabras, cada elemento del resultado se obtiene sumando los productos de los elementos correspondientes de una fila y una columna.</p>
+        </article>
+
+        <article class="card">
+            <h2><span class="num">6.5</span> Ejemplo resuelto</h2>
+            <div class="example-row example-row-center">
+                <div class="labeled-matrix"><span class="ml">A =</span>
+                    <div class="math-matrix"><table><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></table></div>
+                </div>
+                <span class="op-inline" aria-hidden="true">×</span>
+                <div class="labeled-matrix"><span class="ml">B =</span>
+                    <div class="math-matrix"><table><tr><td>5</td><td>6</td></tr><tr><td>7</td><td>8</td></tr></table></div>
+                </div>
+            </div>
+            <ol class="calc-list">
+                <li><span class="calc-name">c<sub>11</sub></span> = (1 × 5) + (2 × 7) = 5 + 14 = <strong>19</strong></li>
+                <li><span class="calc-name">c<sub>12</sub></span> = (1 × 6) + (2 × 8) = 6 + 16 = <strong>22</strong></li>
+                <li><span class="calc-name">c<sub>21</sub></span> = (3 × 5) + (4 × 7) = 15 + 28 = <strong>43</strong></li>
+                <li><span class="calc-name">c<sub>22</sub></span> = (3 × 6) + (4 × 8) = 18 + 32 = <strong>50</strong></li>
+            </ol>
+            <div class="example-row example-row-center">
+                <div class="labeled-matrix"><span class="ml">C =</span>
+                    <div class="math-matrix math-matrix-result"><table><tr><td>19</td><td>22</td></tr><tr><td>43</td><td>50</td></tr></table></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="card">
+            <h2><span class="num">6.6</span> Aplicaciones de la multiplicación matricial</h2>
+            <p>Es una operación básica que aparece como parte de muchas herramientas; por sí sola no resuelve todos los problemas de estas áreas, pero es uno de sus ingredientes.</p>
+            <div class="apps-grid">
+                <div class="app-item"><h3>Informática y programación</h3><p>Algoritmos con tablas de datos, grafos y cálculos numéricos.</p></div>
+                <div class="app-item"><h3>Gráficos por computadora</h3><p>Rotar, escalar y trasladar figuras mediante transformaciones.</p></div>
+                <div class="app-item"><h3>Inteligencia artificial</h3><p>Las redes neuronales combinan datos y pesos con productos de matrices.</p></div>
+                <div class="app-item"><h3>Procesamiento de datos</h3><p>Combinar y transformar conjuntos de datos organizados en tablas.</p></div>
+                <div class="app-item"><h3>Ingeniería y matemáticas</h3><p>Sistemas de ecuaciones, modelos y simulaciones.</p></div>
+            </div>
+        </article>
+    </section>
+
+    <!-- ========== SECCIÓN 3: ACERCA DE ========== -->
+    <section id="acerca" class="view" aria-labelledby="titulo-acerca" hidden>
+        <div class="view-head">
+            <p class="eyebrow">Información</p>
+            <h1 id="titulo-acerca">Acerca de</h1>
+            <p class="lead">Manual de usuario e información del proyecto.</p>
+        </div>
+
+        <div class="subtabs" role="tablist" aria-label="Apartados de Acerca de">
+            <button type="button" class="subtab is-active" role="tab" id="tab-manual" aria-selected="true" aria-controls="panel-manual" data-subtab="manual">Manual de usuario</button>
+            <button type="button" class="subtab" role="tab" id="tab-info" aria-selected="false" aria-controls="panel-info" data-subtab="info" tabindex="-1">Información del proyecto</button>
+        </div>
+
+        <!-- 7.1 Manual -->
+        <div class="card subpanel is-visible" id="panel-manual" role="tabpanel" aria-labelledby="tab-manual">
+            <h2>Manual de usuario</h2>
+            <ol class="manual-steps">
+                <li><h3>Paso 1. Acceder a la herramienta</h3><p>Selecciona «Multiplicación de matrices» en el menú principal.</p></li>
+                <li><h3>Paso 2. Configurar las dimensiones</h3><p>Selecciona el número de filas y columnas de las matrices A y B.</p></li>
+                <li><h3>Paso 3. Ingresar los valores</h3><p>Completa las casillas de ambas matrices con números enteros o decimales.</p></li>
+                <li><h3>Paso 4. Verificar la compatibilidad</h3><p>Comprueba que el número de columnas de A sea igual al número de filas de B.</p></li>
+                <li><h3>Paso 5. Calcular</h3><p>Presiona el botón «Calcular multiplicación».</p></li>
+                <li><h3>Paso 6. Revisar el resultado</h3><p>Observa la matriz resultante y sus dimensiones.</p></li>
+                <li><h3>Paso 7. Consultar el procedimiento</h3><p>Revisa las operaciones realizadas para comprender cómo se calculó cada elemento.</p></li>
+                <li><h3>Paso 8. Probar un ejemplo</h3><p>Utiliza el botón «Cargar ejemplo» para completar las matrices con datos de demostración.</p></li>
+                <li><h3>Paso 9. Realizar otro ejercicio</h3><p>Presiona «Limpiar» para borrar el resultado anterior y comenzar de nuevo.</p></li>
+            </ol>
+
+            <div class="tips">
+                <h3>Recomendaciones</h3>
+                <ul>
+                    <li>Completar todos los campos antes de calcular.</li>
+                    <li>Verificar que las dimensiones sean compatibles.</li>
+                    <li>Introducir únicamente valores numéricos válidos.</li>
+                    <li>Revisar el procedimiento cuando se necesite comprender el resultado.</li>
+                    <li>Utilizar la opción de ejemplo para familiarizarse con la herramienta.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 7.2 Información -->
+        <div class="card subpanel" id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+            <h2>Información del proyecto</h2>
+            <div class="info-logo">
+                <img src="assets/images/logo-nexus-completo.png" alt="Logotipo de NEXUS DATA" width="360" height="160">
+            </div>
+            <dl class="info-list">
+                <div class="info-row"><dt>Nombre de la aplicación</dt><dd>NEXUS DATA</dd></div>
+                <div class="info-row"><dt>Tema del proyecto</dt><dd>Multiplicación de matrices</dd></div>
+                <div class="info-row"><dt>Creadores</dt>
+                    <dd>
+                        <ul class="creators">
+                            <li>Carlos Daniel Lopez Oroman</li>
+                            <li>Mynor Ivan Guerra Chavez</li>
+                            <li>Andrea Gricelda Recinos Argujo</li>
+                        </ul>
+                    </dd>
+                </div>
+                <div class="info-row"><dt>Universidad</dt><dd>Universidad Mariano Gálvez de Guatemala</dd></div>
+                <div class="info-row"><dt>Sede</dt><dd>Boca del Monte</dd></div>
+                <div class="info-row"><dt>Versión</dt><dd><span class="version-badge" data-app-version>1.0.0</span></dd></div>
+            </dl>
+        </div>
+    </section>
+</main>
+
+<!-- ====================== PIE DE PÁGINA ====================== -->
+<footer class="site-footer">
+    <div class="footer-inner">
+        <p><strong>NEXUS DATA</strong> · Versión <span data-app-version>1.0.0</span></p>
+        <p>Universidad Mariano Gálvez de Guatemala · Sede Boca del Monte</p>
+    </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
