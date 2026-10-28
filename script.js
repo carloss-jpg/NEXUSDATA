@@ -15,19 +15,72 @@ const DEFAULT_DIMS = { A: { filas: 2, columnas: 3 }, B: { filas: 3, columnas: 2 
    1. FUNCIONES MATEMÁTICAS (independientes del DOM)
    ========================================================== */
 
+/* ---------- Fracciones exactas (BigInt) ---------- */
+
+/** Una fracción es { n, d } con d > 0 y reducida al mínimo. */
+function isFraction(value) {
+    return typeof value === 'object' && value !== null && typeof value.n === 'bigint';
+}
+
+function bigGcd(a, b) {
+    if (a < 0n) a = -a;
+    if (b < 0n) b = -b;
+    while (b !== 0n) { [a, b] = [b, a % b]; }
+    return a;
+}
+
+function makeFraction(n, d) {
+    if (d === 0n) throw new Error('Denominador cero.');
+    if (d < 0n) { n = -n; d = -d; }
+    const g = bigGcd(n, d) || 1n;
+    return { n: n / g, d: d / g };
+}
+
+function fractionAdd(x, y) { return makeFraction(x.n * y.d + y.n * x.d, x.d * y.d); }
+function fractionMul(x, y) { return makeFraction(x.n * y.n, x.d * y.d); }
+function fractionToNumber(x) { return Number(x.n) / Number(x.d); }
+
+/** Texto de una fracción: entero si d = 1, de lo contrario "n/d". */
+function formatFraction(x) {
+    return x.d === 1n ? x.n.toString() : x.n.toString() + '/' + x.d.toString();
+}
+
+/** Convierte un decimal en texto ("-0,25") a fracción exacta. */
+function decimalTextToFraction(text) {
+    let sign = 1n;
+    if (text[0] === '-') sign = -1n;
+    if (text[0] === '-' || text[0] === '+') text = text.slice(1);
+    const [entera, decimal = ''] = text.replace(',', '.').split('.');
+    const digits = (entera || '0') + decimal;
+    return makeFraction(sign * BigInt(digits), 10n ** BigInt(decimal.length));
+}
+
 /**
  * Convierte el texto de una casilla en número.
- * Devuelve { ok: true, value } o { ok: false, reason: 'vacio' | 'invalido' }.
- * Un campo vacío NUNCA se interpreta como cero.
+ * Acepta enteros, decimales (punto o coma) y fracciones (ej.: 3/4, -2/5).
+ * Devuelve { ok: true, value, fraction, isFraction } o
+ *         { ok: false, reason: 'vacio' | 'invalido' }.
+ * Un campo vacío NUNCA se interpreta como cero. Un denominador 0 es inválido.
  */
 function parseCellValue(rawText) {
     const text = String(rawText).trim();
     if (text === '') return { ok: false, reason: 'vacio' };
+
+    // Fracción: entero / entero, con signo opcional al inicio.
+    const fractionMatch = text.match(/^([+-]?)(\d+)\s*\/\s*(\d+)$/);
+    if (fractionMatch) {
+        const den = BigInt(fractionMatch[3]);
+        if (den === 0n) return { ok: false, reason: 'invalido' };
+        const num = BigInt(fractionMatch[2]) * (fractionMatch[1] === '-' ? -1n : 1n);
+        const fraction = makeFraction(num, den);
+        return { ok: true, value: fractionToNumber(fraction), fraction, isFraction: true };
+    }
+
     // Entero o decimal, con signo opcional; acepta punto o coma decimal.
     if (!/^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(text)) return { ok: false, reason: 'invalido' };
     const value = Number(text.replace(',', '.'));
     if (!Number.isFinite(value)) return { ok: false, reason: 'invalido' };
-    return { ok: true, value };
+    return { ok: true, value, fraction: decimalTextToFraction(text), isFraction: false };
 }
 
 /** Verifica la condición: columnas de A = filas de B. */
@@ -53,16 +106,21 @@ function multiplyMatrices(A, B) {
     const C = [];
     const details = [];
 
+    // Si los elementos son fracciones se calcula con aritmética exacta.
+    const useFractions = isFraction(A[0][0]);
+    const multiply = useFractions ? fractionMul : (x, y) => x * y;
+    const add = useFractions ? fractionAdd : (x, y) => x + y;
+
     for (let i = 0; i < m; i++) {
         const filaC = [];
         const filaDetalle = [];
         for (let j = 0; j < p; j++) {
-            let suma = 0;
+            let suma = useFractions ? makeFraction(0n, 1n) : 0;
             const terminos = [];
             for (let k = 0; k < n; k++) {
-                const producto = A[i][k] * B[k][j];
+                const producto = multiply(A[i][k], B[k][j]);
                 terminos.push({ a: A[i][k], b: B[k][j], producto });
-                suma += producto;
+                suma = add(suma, producto);
             }
             filaC.push(suma);
             filaDetalle.push({ fila: i, columna: j, terminos, suma });
@@ -75,14 +133,16 @@ function multiplyMatrices(A, B) {
 
 /** Da formato a un número evitando ruido de punto flotante (0.1+0.2 → 0.3). */
 function formatNumber(value) {
+    if (isFraction(value)) return formatFraction(value);
     if (Object.is(value, -0)) value = 0;
     const rounded = parseFloat(value.toFixed(10));
     return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 
-/** Operando entre paréntesis si es negativo, para evitar ambigüedades. */
+/** Operando entre paréntesis si es negativo (o fracción), para evitar ambigüedades. */
 function formatOperand(value) {
     const text = formatNumber(value);
+    if (isFraction(value)) return (value.n < 0n || value.d !== 1n) ? '(' + text + ')' : text;
     return value < 0 ? '(' + text + ')' : text;
 }
 
@@ -100,7 +160,7 @@ function positionLabel(letter, row, col) {
 
 /* Exportación para pruebas en Node (no afecta al navegador). */
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { parseCellValue, areDimensionsCompatible, multiplyMatrices, formatNumber, positionLabel };
+    module.exports = { parseCellValue, areDimensionsCompatible, multiplyMatrices, formatNumber, positionLabel, isFraction, fractionToNumber };
 }
 
 /* ==========================================================
@@ -130,6 +190,9 @@ function initApp() {
 
     /* Valores guardados de las casillas (para conservar lo escrito al cambiar dimensiones). */
     const stored = { A: [], B: [] };
+
+    /* Teclado propio en dispositivos táctiles (teléfonos y tabletas). */
+    const useTouchKeypad = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
 
     /* ---------- Versión ---------- */
     document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = APP_VERSION; });
@@ -303,7 +366,8 @@ function initApp() {
 
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.inputMode = 'decimal';
+                // En pantallas táctiles se usa el teclado propio (con signos y fracciones).
+                input.inputMode = useTouchKeypad ? 'none' : 'decimal';
                 input.autocomplete = 'off';
                 input.className = 'cell-input';
                 input.id = inputId;
@@ -387,26 +451,33 @@ function initApp() {
     function readMatrix(letter) {
         const { filas, columnas } = getDims(letter);
         const matrix = [];
+        const fractions = [];
         const empty = [];
         const invalid = [];
+        let hasFraction = false;
 
         for (let r = 0; r < filas; r++) {
             const row = [];
+            const fractionRow = [];
             for (let c = 0; c < columnas; c++) {
                 const input = $('celda' + letter + '_' + r + '_' + c);
                 const parsed = parseCellValue(input.value);
                 if (parsed.ok) {
                     row.push(parsed.value);
+                    fractionRow.push(parsed.fraction);
+                    if (parsed.isFraction) hasFraction = true;
                     input.classList.remove('is-invalid');
                 } else {
                     input.classList.add('is-invalid');
                     (parsed.reason === 'vacio' ? empty : invalid).push({ input, label: positionLabel(letter, r + 1, c + 1) });
                     row.push(NaN);
+                    fractionRow.push(null);
                 }
             }
             matrix.push(row);
+            fractions.push(fractionRow);
         }
-        return { matrix, empty, invalid };
+        return { matrix, fractions, hasFraction, empty, invalid };
     }
 
     function summarizeLabels(items) {
@@ -440,18 +511,22 @@ function initApp() {
         if (empty.length || invalid.length) {
             const parts = [];
             if (empty.length) parts.push('Faltan valores en: ' + summarizeLabels(empty) + '.');
-            if (invalid.length) parts.push('Hay entradas no válidas en: ' + summarizeLabels(invalid) + '. Usa solo números enteros o decimales.');
+            if (invalid.length) parts.push('Hay entradas no válidas en: ' + summarizeLabels(invalid) + '. Usa solo números enteros, decimales o fracciones (por ejemplo 3/4); el denominador no puede ser 0.');
             showError(parts.join(' '));
             (empty[0] || invalid[0]).input.focus();
             return;
         }
 
         // 3) Cálculo
-        const { C, details } = multiplyMatrices(readA.matrix, readB.matrix);
+        // Si alguna casilla es una fracción, todo se calcula y muestra con fracciones exactas.
+        const useFractions = readA.hasFraction || readB.hasFraction;
+        const matrixA = useFractions ? readA.fractions : readA.matrix;
+        const matrixB = useFractions ? readB.fractions : readB.matrix;
+        const { C, details } = multiplyMatrices(matrixA, matrixB);
 
         // 4) Presentación
         renderResult(C, dimsA, dimsB);
-        renderProcedure(readA.matrix, readB.matrix, details, dimsA, dimsB);
+        renderProcedure(matrixA, matrixB, details, dimsA, dimsB);
 
         resultArea.hidden = false;
         procedureArea.hidden = false;
@@ -470,7 +545,8 @@ function initApp() {
             for (let j = 0; j < p; j++) {
                 const cell = createElement('div', 'result-cell', formatNumber(C[i][j]));
                 cell.setAttribute('role', 'cell');
-                cell.title = positionLabel('c', i + 1, j + 1);
+                cell.title = positionLabel('c', i + 1, j + 1) +
+                    (isFraction(C[i][j]) && C[i][j].d !== 1n ? ' ≈ ' + formatNumber(fractionToNumber(C[i][j])) : '');
                 resultGrid.appendChild(cell);
             }
         }
@@ -583,6 +659,139 @@ function initApp() {
     $('btnCalcular').addEventListener('click', calculate);
     $('btnEjemplo').addEventListener('click', loadExample);
     $('btnLimpiar').addEventListener('click', clearAll);
+
+    /* ==========================================================
+       TECLADO AUXILIAR (solo en dispositivos táctiles)
+       Dígitos, signos y fracción, sin depender del teclado del sistema.
+       ========================================================== */
+    if (useTouchKeypad) setupTouchKeypad();
+
+    function setupTouchKeypad() {
+        const keys = [
+            { label: '7', value: '7' }, { label: '8', value: '8' }, { label: '9', value: '9' },
+            { label: '⌫', action: 'borrar', aria: 'Borrar', cls: 'key-fn' },
+            { label: '4', value: '4' }, { label: '5', value: '5' }, { label: '6', value: '6' },
+            { label: '−', action: 'menos', aria: 'Signo menos', cls: 'key-fn' },
+            { label: '1', value: '1' }, { label: '2', value: '2' }, { label: '3', value: '3' },
+            { label: '/', value: '/', aria: 'Fracción', cls: 'key-fn' },
+            { label: '0', value: '0' }, { label: '.', value: '.', aria: 'Punto decimal' },
+            { label: '+', action: 'mas', aria: 'Signo más', cls: 'key-fn' },
+            { label: 'Sig. ›', action: 'siguiente', aria: 'Siguiente casilla', cls: 'key-next' }
+        ];
+
+        const pad = createElement('div', 'keypad');
+        pad.id = 'tecladoAuxiliar';
+        pad.hidden = true;
+        pad.setAttribute('role', 'group');
+        pad.setAttribute('aria-label', 'Teclado numérico con signos y fracciones');
+
+        const closeBtn = createElement('button', 'keypad-close', 'Ocultar teclado ✕');
+        closeBtn.type = 'button';
+        closeBtn.tabIndex = -1;
+        pad.appendChild(closeBtn);
+
+        const keysBox = createElement('div', 'keypad-keys');
+        keys.forEach(key => {
+            const btn = createElement('button', 'keypad-key' + (key.cls ? ' ' + key.cls : ''), key.label);
+            btn.type = 'button';
+            btn.tabIndex = -1;
+            if (key.aria) btn.setAttribute('aria-label', key.aria);
+            if (key.value) btn.dataset.value = key.value;
+            if (key.action) btn.dataset.action = key.action;
+            keysBox.appendChild(btn);
+        });
+        pad.appendChild(keysBox);
+        document.body.appendChild(pad);
+
+        let activeInput = null;
+
+        function notifyInput(input) {
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function insertText(input, text) {
+            const start = input.selectionStart === null ? input.value.length : input.selectionStart;
+            const end = input.selectionEnd === null ? start : input.selectionEnd;
+            input.value = input.value.slice(0, start) + text + input.value.slice(end);
+            const pos = start + text.length;
+            input.setSelectionRange(pos, pos);
+            notifyInput(input);
+        }
+
+        function deleteBackward(input) {
+            const start = input.selectionStart === null ? input.value.length : input.selectionStart;
+            const end = input.selectionEnd === null ? start : input.selectionEnd;
+            if (start !== end) {
+                input.value = input.value.slice(0, start) + input.value.slice(end);
+                input.setSelectionRange(start, start);
+            } else if (start > 0) {
+                input.value = input.value.slice(0, start - 1) + input.value.slice(start);
+                input.setSelectionRange(start - 1, start - 1);
+            }
+            notifyInput(input);
+        }
+
+        /** Pone o quita el signo al inicio del valor (el signo "+" o "−" tocado dos veces se quita). */
+        function toggleLeadingSign(input, sign) {
+            const pos = input.selectionStart === null ? input.value.length : input.selectionStart;
+            const current = (input.value.match(/^[+-]/) || [''])[0];
+            const next = current === sign ? '' : sign;
+            input.value = next + input.value.slice(current.length);
+            const newPos = Math.max(0, pos + next.length - current.length);
+            input.setSelectionRange(newPos, newPos);
+            notifyInput(input);
+        }
+
+        function focusNext(input) {
+            const all = Array.from(document.querySelectorAll('.cell-input'));
+            const next = all[all.indexOf(input) + 1];
+            if (next) next.focus();
+            else hidePad(true);
+        }
+
+        function showPad() {
+            pad.hidden = false;
+            document.body.classList.add('keypad-open');
+        }
+
+        function hidePad(blurInput) {
+            pad.hidden = true;
+            document.body.classList.remove('keypad-open');
+            if (blurInput && activeInput) activeInput.blur();
+        }
+
+        function pressKey(btn) {
+            if (!activeInput) return;
+            const action = btn.dataset.action;
+            if (action === 'borrar') deleteBackward(activeInput);
+            else if (action === 'menos') toggleLeadingSign(activeInput, '-');
+            else if (action === 'mas') toggleLeadingSign(activeInput, '+');
+            else if (action === 'siguiente') focusNext(activeInput);
+            else if (btn.dataset.value) insertText(activeInput, btn.dataset.value);
+        }
+
+        // pointerdown + preventDefault: la casilla conserva el foco mientras se pulsan las teclas.
+        pad.addEventListener('pointerdown', (event) => {
+            event.preventDefault();
+            const btn = event.target.closest('button');
+            if (!btn) return;
+            if (btn === closeBtn) hidePad(true);
+            else pressKey(btn);
+        });
+        pad.addEventListener('mousedown', (event) => event.preventDefault());
+
+        document.addEventListener('focusin', (event) => {
+            const target = event.target;
+            if (target.classList && target.classList.contains('cell-input')) {
+                activeInput = target;
+                showPad();
+                // Evita que el teclado tape la casilla activa.
+                setTimeout(() => target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+            } else if (!pad.contains(target)) {
+                hidePad(false);
+            }
+        });
+    }
 
     /* ==========================================================
        PANTALLA DE BIENVENIDA
