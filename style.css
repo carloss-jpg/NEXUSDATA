@@ -364,7 +364,7 @@ select:focus, .cell-input:focus {
     z-index: 1;
 }
 .cell-input {
-    width: 4.6rem;
+    width: 5.4rem;
     text-align: center;
     padding: 0.7rem 0.3rem 0.45rem;
     font-weight: 600;
@@ -739,7 +739,7 @@ select:focus, .cell-input:focus {
     .card { padding: var(--space-2); }
     .operator { font-size: 2rem; }
     .btn { flex: 1 1 100%; }
-    .cell-input, .result-cell { width: 3.8rem; min-width: 3.8rem; }
+    .cell-input, .result-cell { width: 4.4rem; min-width: 4.4rem; }
     .formula { font-size: 1.3rem; }
 }
 
@@ -809,6 +809,65 @@ body.splash-active { overflow: hidden; }
     animation: hintPulse 2s ease-in-out 1s infinite;
 }
 .splash-btn:hover .splash-hint { background: var(--color-primary); color: var(--color-accent); border-color: var(--color-primary); }
+
+/* ---------- Teclado auxiliar (dispositivos táctiles) ---------- */
+body.keypad-open { padding-bottom: 19rem; }
+
+.keypad {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 150;
+    background: var(--color-primary);
+    border-top: 4px solid var(--color-accent);
+    padding: 0.4rem 0.6rem calc(0.6rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 20px rgba(26, 26, 26, 0.25);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.keypad-close {
+    display: block;
+    margin: 0 0 0.4rem auto;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-background);
+    background: transparent;
+    border: 1px solid var(--color-secondary);
+    border-radius: 999px;
+    padding: 0.25rem 0.8rem;
+    cursor: pointer;
+}
+
+.keypad-keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem;
+    max-width: 460px;
+    margin: 0 auto;
+}
+
+.keypad-key {
+    font-family: inherit;
+    font-size: 1.4rem;
+    font-weight: 700;
+    min-height: 3rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--color-background);
+    color: var(--color-primary);
+    cursor: pointer;
+}
+.keypad-key:active { background: var(--color-accent); }
+.keypad-key.key-fn { background: var(--color-secondary); }
+.keypad-key.key-fn:active { background: var(--color-accent); }
+.keypad-key.key-next {
+    background: var(--color-accent);
+    font-size: 1.05rem;
+}
 
 @keyframes splashIn {
     from { opacity: 0; transform: scale(0.92); }
