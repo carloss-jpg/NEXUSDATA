@@ -55,24 +55,149 @@ function decimalTextToFraction(text) {
     return makeFraction(sign * BigInt(digits), 10n ** BigInt(decimal.length));
 }
 
+/* ---------- Radicales exactos (BigInt) ---------- */
+
+/**
+ * Un radical es { r: [ { s, q }, ... ] } y representa Σ q·√s, donde cada s es un entero
+ * libre de cuadrados (s = 1 es la parte racional), q es una fracción { n, d } distinta de
+ * cero y los términos van ordenados por s. Un arreglo vacío es el cero.
+ */
+function isRadical(value) {
+    return typeof value === 'object' && value !== null && Array.isArray(value.r);
+}
+
+function radicalFromFraction(f) {
+    return { r: f.n === 0n ? [] : [{ s: 1n, q: f }] };
+}
+
+function radicalFromMap(map) {
+    const terms = [];
+    Array.from(map.keys()).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).forEach(s => {
+        const q = map.get(s);
+        if (q.n !== 0n) terms.push({ s, q });
+    });
+    return { r: terms };
+}
+
+function radicalAdd(x, y) {
+    const map = new Map();
+    [x, y].forEach(rad => rad.r.forEach(t => {
+        map.set(t.s, map.has(t.s) ? fractionAdd(map.get(t.s), t.q) : t.q);
+    }));
+    return radicalFromMap(map);
+}
+
+function radicalMul(x, y) {
+    const map = new Map();
+    x.r.forEach(a => y.r.forEach(b => {
+        // √a·√b = g·√((a/g)(b/g)), con g = mcd(a, b): el radicando resultante sigue libre de cuadrados.
+        const g = bigGcd(a.s, b.s);
+        const s = (a.s / g) * (b.s / g);
+        const q = fractionMul(fractionMul(a.q, b.q), makeFraction(g, 1n));
+        map.set(s, map.has(s) ? fractionAdd(map.get(s), q) : q);
+    }));
+    return radicalFromMap(map);
+}
+
+/** Inverso de un radical de un solo término: 1/(q·√s) = √s/(q·s). */
+function radicalInverse(x) {
+    const t = x.r[0];
+    return { r: [{ s: t.s, q: makeFraction(t.q.d, t.q.n * t.s) }] };
+}
+
+function radicalToNumber(x) {
+    return x.r.reduce((total, t) => total + fractionToNumber(t.q) * Math.sqrt(Number(t.s)), 0);
+}
+
+/** Texto de un radical: "√2/2", "2√3/5", "1/2 + √3/3", "0". */
+function formatRadical(x) {
+    if (x.r.length === 0) return '0';
+    return x.r.map((t, index) => {
+        const negative = t.q.n < 0n;
+        const abs = negative ? -t.q.n : t.q.n;
+        const den = t.q.d !== 1n ? '/' + t.q.d.toString() : '';
+        const body = t.s === 1n
+            ? abs.toString() + den
+            : (abs === 1n ? '' : abs.toString()) + '√' + t.s.toString() + den;
+        if (index === 0) return (negative ? '-' : '') + body;
+        return (negative ? ' - ' : ' + ') + body;
+    }).join('');
+}
+
+/** Descompone un entero positivo como k²·s con s libre de cuadrados. */
+function squareFreeParts(radicand) {
+    let n = Number(radicand);
+    let k = 1;
+    let s = 1;
+    for (let p = 2; p * p <= n; p++) {
+        let exponent = 0;
+        while (n % p === 0) { n /= p; exponent++; }
+        k *= Math.pow(p, Math.floor(exponent / 2));
+        if (exponent % 2) s *= p;
+    }
+    return { k: BigInt(k), s: BigInt(s * n) };
+}
+
+const RADICAL_WORD = /√|sqrt|ra[ií]z/;
+
+/** Un término es un entero o c√r (ej.: 3, √2, 2√3, -5√7, sqrt(2), raiz3). Devuelve un radical o null. */
+function parseRadicalTerm(text) {
+    const m = text.match(/^([+-]?)\s*(\d+)?\s*(?:\*?\s*(?:√|sqrt|ra[ií]z)\s*(?:\(\s*(\d+)\s*\)|(\d+)))?$/);
+    if (!m) return null;
+    const hasCoef = m[2] !== undefined;
+    const radicandText = m[3] !== undefined ? m[3] : m[4];
+    if (!hasCoef && radicandText === undefined) return null;
+    if (radicandText !== undefined && radicandText.length > 12) return null;
+
+    const sign = m[1] === '-' ? -1n : 1n;
+    const coef = hasCoef ? BigInt(m[2]) : 1n;
+    if (radicandText === undefined) return radicalFromFraction(makeFraction(sign * coef, 1n));
+
+    const radicand = BigInt(radicandText);
+    if (radicand === 0n || coef === 0n) return { r: [] };
+    const { k, s } = squareFreeParts(radicand);
+    return { r: [{ s, q: makeFraction(sign * coef * k, 1n) }] };
+}
+
+/** Casilla con raíz: término o término/término (el denominador puede ser negativo). */
+function parseRadicalCell(text) {
+    const parts = text.split('/');
+    if (parts.length > 2) return null;
+    const numerator = parseRadicalTerm(parts[0].trim());
+    if (!numerator) return null;
+    if (parts.length === 1) return numerator;
+    const denominator = parseRadicalTerm(parts[1].trim());
+    if (!denominator || denominator.r.length === 0) return null;   // denominador 0 no válido
+    return radicalMul(numerator, radicalInverse(denominator));
+}
+
 /**
  * Convierte el texto de una casilla en número.
- * Acepta enteros, decimales (punto o coma) y fracciones (ej.: 3/4, -2/5).
- * Devuelve { ok: true, value, fraction, isFraction } o
+ * Acepta enteros, decimales (punto o coma), fracciones (ej.: 3/4, -2/5, 3/-4)
+ * y fracciones con raíces cuadradas (ej.: √2/2, 3/√5, 2√3/-4, sqrt(2)/2).
+ * Devuelve { ok: true, value, fraction, isFraction } (o radical e isRadical si hay raíces) o
  *         { ok: false, reason: 'vacio' | 'invalido' }.
  * Un campo vacío NUNCA se interpreta como cero. Un denominador 0 es inválido.
  */
 function parseCellValue(rawText) {
-    const text = String(rawText).trim();
+    const text = String(rawText).trim().replace(/\u2212/g, '-');
     if (text === '') return { ok: false, reason: 'vacio' };
 
-    // Fracción: entero / entero, con signo opcional al inicio.
-    const fractionMatch = text.match(/^([+-]?)(\d+)\s*\/\s*(\d+)$/);
+    // Fracción con raíces cuadradas (ej.: √2/2, 3/√5, 2√3/-4).
+    const lower = text.toLowerCase();
+    if (RADICAL_WORD.test(lower)) {
+        const radical = parseRadicalCell(lower);
+        if (!radical) return { ok: false, reason: 'invalido' };
+        return { ok: true, value: radicalToNumber(radical), radical, fraction: null, isFraction: false, isRadical: true };
+    }
+
+    // Fracción: entero / entero, con signo opcional en el numerador y en el denominador.
+    const fractionMatch = text.match(/^([+-]?)(\d+)\s*\/\s*([+-]?)(\d+)$/);
     if (fractionMatch) {
-        const den = BigInt(fractionMatch[3]);
+        const den = BigInt(fractionMatch[4]);
         if (den === 0n) return { ok: false, reason: 'invalido' };
         const num = BigInt(fractionMatch[2]) * (fractionMatch[1] === '-' ? -1n : 1n);
-        const fraction = makeFraction(num, den);
+        const fraction = makeFraction(num, den * (fractionMatch[3] === '-' ? -1n : 1n));
         return { ok: true, value: fractionToNumber(fraction), fraction, isFraction: true };
     }
 
@@ -106,16 +231,17 @@ function multiplyMatrices(A, B) {
     const C = [];
     const details = [];
 
-    // Si los elementos son fracciones se calcula con aritmética exacta.
+    // Si los elementos son fracciones o radicales se calcula con aritmética exacta.
+    const useRadicals = isRadical(A[0][0]);
     const useFractions = isFraction(A[0][0]);
-    const multiply = useFractions ? fractionMul : (x, y) => x * y;
-    const add = useFractions ? fractionAdd : (x, y) => x + y;
+    const multiply = useRadicals ? radicalMul : useFractions ? fractionMul : (x, y) => x * y;
+    const add = useRadicals ? radicalAdd : useFractions ? fractionAdd : (x, y) => x + y;
 
     for (let i = 0; i < m; i++) {
         const filaC = [];
         const filaDetalle = [];
         for (let j = 0; j < p; j++) {
-            let suma = useFractions ? makeFraction(0n, 1n) : 0;
+            let suma = useRadicals ? { r: [] } : useFractions ? makeFraction(0n, 1n) : 0;
             const terminos = [];
             for (let k = 0; k < n; k++) {
                 const producto = multiply(A[i][k], B[k][j]);
@@ -133,6 +259,7 @@ function multiplyMatrices(A, B) {
 
 /** Da formato a un número evitando ruido de punto flotante (0.1+0.2 → 0.3). */
 function formatNumber(value) {
+    if (isRadical(value)) return formatRadical(value);
     if (isFraction(value)) return formatFraction(value);
     if (Object.is(value, -0)) value = 0;
     const rounded = parseFloat(value.toFixed(10));
@@ -142,6 +269,11 @@ function formatNumber(value) {
 /** Operando entre paréntesis si es negativo (o fracción), para evitar ambigüedades. */
 function formatOperand(value) {
     const text = formatNumber(value);
+    if (isRadical(value)) {
+        const plain = value.r.length === 0 ||
+            (value.r.length === 1 && value.r[0].s === 1n && value.r[0].q.d === 1n && value.r[0].q.n > 0n);
+        return plain ? text : '(' + text + ')';
+    }
     if (isFraction(value)) return (value.n < 0n || value.d !== 1n) ? '(' + text + ')' : text;
     return value < 0 ? '(' + text + ')' : text;
 }
@@ -160,7 +292,7 @@ function positionLabel(letter, row, col) {
 
 /* Exportación para pruebas en Node (no afecta al navegador). */
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { parseCellValue, areDimensionsCompatible, multiplyMatrices, formatNumber, positionLabel, isFraction, fractionToNumber };
+    module.exports = { parseCellValue, areDimensionsCompatible, multiplyMatrices, formatNumber, positionLabel, isFraction, fractionToNumber, isRadical, radicalToNumber };
 }
 
 /* ==========================================================
@@ -452,32 +584,39 @@ function initApp() {
         const { filas, columnas } = getDims(letter);
         const matrix = [];
         const fractions = [];
+        const radicals = [];
         const empty = [];
         const invalid = [];
         let hasFraction = false;
+        let hasRadical = false;
 
         for (let r = 0; r < filas; r++) {
             const row = [];
             const fractionRow = [];
+            const radicalRow = [];
             for (let c = 0; c < columnas; c++) {
                 const input = $('celda' + letter + '_' + r + '_' + c);
                 const parsed = parseCellValue(input.value);
                 if (parsed.ok) {
                     row.push(parsed.value);
                     fractionRow.push(parsed.fraction);
+                    radicalRow.push(parsed.isRadical ? parsed.radical : radicalFromFraction(parsed.fraction));
                     if (parsed.isFraction) hasFraction = true;
+                    if (parsed.isRadical) hasRadical = true;
                     input.classList.remove('is-invalid');
                 } else {
                     input.classList.add('is-invalid');
                     (parsed.reason === 'vacio' ? empty : invalid).push({ input, label: positionLabel(letter, r + 1, c + 1) });
                     row.push(NaN);
                     fractionRow.push(null);
+                    radicalRow.push(null);
                 }
             }
             matrix.push(row);
             fractions.push(fractionRow);
+            radicals.push(radicalRow);
         }
-        return { matrix, fractions, hasFraction, empty, invalid };
+        return { matrix, fractions, radicals, hasFraction, hasRadical, empty, invalid };
     }
 
     function summarizeLabels(items) {
@@ -511,17 +650,18 @@ function initApp() {
         if (empty.length || invalid.length) {
             const parts = [];
             if (empty.length) parts.push('Faltan valores en: ' + summarizeLabels(empty) + '.');
-            if (invalid.length) parts.push('Hay entradas no válidas en: ' + summarizeLabels(invalid) + '. Usa solo números enteros, decimales o fracciones (por ejemplo 3/4); el denominador no puede ser 0.');
+            if (invalid.length) parts.push('Hay entradas no válidas en: ' + summarizeLabels(invalid) + '. Usa solo números enteros, decimales, fracciones (por ejemplo 3/4 o 3/-4) o fracciones con raíces (por ejemplo √2/2); el denominador no puede ser 0.');
             showError(parts.join(' '));
             (empty[0] || invalid[0]).input.focus();
             return;
         }
 
         // 3) Cálculo
-        // Si alguna casilla es una fracción, todo se calcula y muestra con fracciones exactas.
+        // Si alguna casilla es una fracción (o tiene raíces), todo se calcula y muestra de forma exacta.
+        const useRadicals = readA.hasRadical || readB.hasRadical;
         const useFractions = readA.hasFraction || readB.hasFraction;
-        const matrixA = useFractions ? readA.fractions : readA.matrix;
-        const matrixB = useFractions ? readB.fractions : readB.matrix;
+        const matrixA = useRadicals ? readA.radicals : useFractions ? readA.fractions : readA.matrix;
+        const matrixB = useRadicals ? readB.radicals : useFractions ? readB.fractions : readB.matrix;
         const { C, details } = multiplyMatrices(matrixA, matrixB);
 
         // 4) Presentación
@@ -531,6 +671,11 @@ function initApp() {
         resultArea.hidden = false;
         procedureArea.hidden = false;
         resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /** true si el radical contiene alguna raíz (no es un número racional). */
+    function hasIrrational(value) {
+        return isRadical(value) && value.r.some(t => t.s !== 1n);
     }
 
     function renderResult(C, dimsA, dimsB) {
@@ -546,7 +691,8 @@ function initApp() {
                 const cell = createElement('div', 'result-cell', formatNumber(C[i][j]));
                 cell.setAttribute('role', 'cell');
                 cell.title = positionLabel('c', i + 1, j + 1) +
-                    (isFraction(C[i][j]) && C[i][j].d !== 1n ? ' ≈ ' + formatNumber(fractionToNumber(C[i][j])) : '');
+                    (isFraction(C[i][j]) && C[i][j].d !== 1n ? ' ≈ ' + formatNumber(fractionToNumber(C[i][j])) : '') +
+                    (hasIrrational(C[i][j]) ? ' ≈ ' + formatNumber(radicalToNumber(C[i][j])) : '');
                 resultGrid.appendChild(cell);
             }
         }
@@ -596,6 +742,9 @@ function initApp() {
                 final.appendChild(createElement('span', 'lbl', 'Suma final'));
                 final.appendChild(document.createTextNode(name + ' = '));
                 final.appendChild(createElement('span', 'value', formatNumber(detail.suma)));
+                if (hasIrrational(detail.suma)) {
+                    final.appendChild(document.createTextNode('  ≈ ' + formatNumber(radicalToNumber(detail.suma))));
+                }
                 item.appendChild(final);
 
                 items.appendChild(item);
@@ -676,6 +825,7 @@ function initApp() {
             { label: '/', value: '/', aria: 'Fracción', cls: 'key-fn' },
             { label: '0', value: '0' }, { label: '.', value: '.', aria: 'Punto decimal' },
             { label: '+', action: 'mas', aria: 'Signo más', cls: 'key-fn' },
+            { label: '√', value: '√', aria: 'Raíz cuadrada', cls: 'key-fn' },
             { label: 'Sig. ›', action: 'siguiente', aria: 'Siguiente casilla', cls: 'key-next' }
         ];
 
@@ -683,7 +833,7 @@ function initApp() {
         pad.id = 'tecladoAuxiliar';
         pad.hidden = true;
         pad.setAttribute('role', 'group');
-        pad.setAttribute('aria-label', 'Teclado numérico con signos y fracciones');
+        pad.setAttribute('aria-label', 'Teclado numérico con signos, fracciones y raíces');
 
         const closeBtn = createElement('button', 'keypad-close', 'Ocultar teclado ✕');
         closeBtn.type = 'button';
@@ -731,13 +881,23 @@ function initApp() {
             notifyInput(input);
         }
 
-        /** Pone o quita el signo al inicio del valor (el signo "+" o "−" tocado dos veces se quita). */
+        /**
+         * Pone o quita el signo al inicio del numerador o, si el cursor está después de la
+         * barra "/", al inicio del denominador (el signo "+" o "−" tocado dos veces se quita).
+         */
         function toggleLeadingSign(input, sign) {
-            const pos = input.selectionStart === null ? input.value.length : input.selectionStart;
-            const current = (input.value.match(/^[+-]/) || [''])[0];
+            const value = input.value;
+            const pos = input.selectionStart === null ? value.length : input.selectionStart;
+            const slash = value.indexOf('/');
+            let base = 0;
+            if (slash !== -1 && pos > slash) {
+                base = slash + 1;
+                while (value[base] === ' ') base++;
+            }
+            const current = (value.slice(base).match(/^[+-]/) || [''])[0];
             const next = current === sign ? '' : sign;
-            input.value = next + input.value.slice(current.length);
-            const newPos = Math.max(0, pos + next.length - current.length);
+            input.value = value.slice(0, base) + next + value.slice(base + current.length);
+            const newPos = Math.max(base, pos + next.length - current.length);
             input.setSelectionRange(newPos, newPos);
             notifyInput(input);
         }
