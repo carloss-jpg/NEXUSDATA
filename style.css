@@ -811,7 +811,7 @@ body.splash-active { overflow: hidden; }
 .splash-btn:hover .splash-hint { background: var(--color-primary); color: var(--color-accent); border-color: var(--color-primary); }
 
 /* ---------- Teclado auxiliar (dispositivos táctiles) ---------- */
-body.keypad-open { padding-bottom: 19rem; }
+body.keypad-open { padding-bottom: 22.5rem; }
 
 .keypad {
     position: fixed;
@@ -865,6 +865,7 @@ body.keypad-open { padding-bottom: 19rem; }
 .keypad-key.key-fn { background: var(--color-secondary); }
 .keypad-key.key-fn:active { background: var(--color-accent); }
 .keypad-key.key-next {
+    grid-column: 1 / -1;
     background: var(--color-accent);
     font-size: 1.05rem;
 }
